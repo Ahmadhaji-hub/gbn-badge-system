@@ -133,31 +133,92 @@ def badge_page(username: str):
     if username not in USERS:
         return "User not found ❌"
 
-    return f"""
-    <html>
-    <body style="text-align:center; font-family:Arial;">
-        <h2>{username.upper()} Badge</h2>
+    rreturn f"""
+<html>
+<head>
+<style>
+    body {{
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+    }}
 
-        <img id="qr" src="/qr/{username}" width="300">
+    .card {{
+        background: white;
+        padding: 30px;
+        border-radius: 20px;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        width: 320px;
+    }}
 
-        <br><br>
+    h2 {{
+        margin-bottom: 20px;
+        color: #333;
+    }}
 
-        <button onclick="checkin()">Remote Check-in</button>
+    img {{
+        border-radius: 10px;
+    }}
 
-        <script>
-        setInterval(() => {{
-            document.getElementById("qr").src = "/qr/{username}?" + new Date().getTime();
-        }}, 30000);
+    button {{
+        margin-top: 20px;
+        padding: 12px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 10px;
+        background: #667eea;
+        color: white;
+        cursor: pointer;
+        transition: 0.3s;
+    }}
 
-        function checkin() {{
-            fetch("/checkin/{username}")
-            .then(res => res.json())
-            .then(data => alert(data.status));
-        }}
-        </script>
-    </body>
-    </html>
-    """
+    button:hover {{
+        background: #5a67d8;
+        transform: scale(1.05);
+    }}
+
+    p {{
+        color: #777;
+        font-size: 14px;
+    }}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+    <h2>{username.upper()} Badge</h2>
+
+    <img id="qr" src="/qr/{username}" width="220">
+
+    <p>QR updates every 30s</p>
+
+    <button onclick="checkin()">
+        ✅ Remote Check-in
+    </button>
+</div>
+
+<script>
+setInterval(() => {{
+    document.getElementById("qr").src = "/qr/{username}?" + new Date().getTime();
+}}, 30000);
+
+function checkin() {{
+    fetch("/checkin/{username}")
+    .then(res => res.json())
+    .then(data => alert(data.status));
+}}
+</script>
+
+</body>
+</html>
+"""
+    
 
 
 # 🟢 scan
