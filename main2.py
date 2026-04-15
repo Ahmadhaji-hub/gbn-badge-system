@@ -63,7 +63,7 @@ def verify_code(code):
     return None
 
 
-# 📨 EMAIL (MailHog local + safe on Render)
+# 📨 EMAIL (MailHog safe)
 def send_email(to_email, subject, body):
     try:
         msg = MIMEText(body)
@@ -71,17 +71,14 @@ def send_email(to_email, subject, body):
         msg["From"] = "test@local.com"
         msg["To"] = to_email
 
-        # MailHog local
         server = smtplib.SMTP("localhost", 1026)
         server.send_message(msg)
         server.quit()
 
-        print("Email sent via MailHog ✅")
+        print("Email sent ✅")
 
     except Exception as e:
-        # Render or no MailHog → ignore
         print("Email skipped (MailHog not available)")
-        print("Error:", e)
 
 
 # 📝 register attendance
@@ -99,7 +96,6 @@ def register_attendance(username, method):
         "method": method
     })
 
-    # 🔥 send email safely
     send_email(
         "test@email.com",
         "Check-in confirmé",
@@ -125,7 +121,7 @@ def get_qr(username: str):
     return StreamingResponse(buf, media_type="image/png")
 
 
-# 📱 badge
+# 📱 badge (🔥 UI جديد)
 @app.get("/my-badge/{username}", response_class=HTMLResponse)
 def badge_page(username: str):
     username = username.lower()
@@ -133,92 +129,83 @@ def badge_page(username: str):
     if username not in USERS:
         return "User not found ❌"
 
-    rreturn f"""
-<html>
-<head>
-<style>
-    body {{
-        font-family: Arial, sans-serif;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
+    return f"""
+    <html>
+    <head>
+    <style>
+        body {{
+            font-family: Arial;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }}
+
+        .card {{
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 320px;
+        }}
+
+        h2 {{
+            color: #333;
+        }}
+
+        button {{
+            margin-top: 20px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            background: #667eea;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.3s;
+        }}
+
+        button:hover {{
+            background: #5a67d8;
+            transform: scale(1.05);
+        }}
+
+        p {{
+            color: #777;
+        }}
+    </style>
+    </head>
+
+    <body>
+
+    <div class="card">
+        <h2>{username.upper()} Badge</h2>
+
+        <img id="qr" src="/qr/{username}" width="220">
+
+        <p>QR updates every 30 seconds</p>
+
+        <button onclick="checkin()">✅ Remote Check-in</button>
+    </div>
+
+    <script>
+    setInterval(() => {{
+        document.getElementById("qr").src = "/qr/{username}?" + new Date().getTime();
+    }}, 30000);
+
+    function checkin() {{
+        fetch("/checkin/{username}")
+        .then(res => res.json())
+        .then(data => alert(data.status));
     }}
+    </script>
 
-    .card {{
-        background: white;
-        padding: 30px;
-        border-radius: 20px;
-        text-align: center;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        width: 320px;
-    }}
-
-    h2 {{
-        margin-bottom: 20px;
-        color: #333;
-    }}
-
-    img {{
-        border-radius: 10px;
-    }}
-
-    button {{
-        margin-top: 20px;
-        padding: 12px 20px;
-        font-size: 16px;
-        border: none;
-        border-radius: 10px;
-        background: #667eea;
-        color: white;
-        cursor: pointer;
-        transition: 0.3s;
-    }}
-
-    button:hover {{
-        background: #5a67d8;
-        transform: scale(1.05);
-    }}
-
-    p {{
-        color: #777;
-        font-size: 14px;
-    }}
-</style>
-</head>
-
-<body>
-
-<div class="card">
-    <h2>{username.upper()} Badge</h2>
-
-    <img id="qr" src="/qr/{username}" width="220">
-
-    <p>QR updates every 30s</p>
-
-    <button onclick="checkin()">
-        ✅ Remote Check-in
-    </button>
-</div>
-
-<script>
-setInterval(() => {{
-    document.getElementById("qr").src = "/qr/{username}?" + new Date().getTime();
-}}, 30000);
-
-function checkin() {{
-    fetch("/checkin/{username}")
-    .then(res => res.json())
-    .then(data => alert(data.status));
-}}
-</script>
-
-</body>
-</html>
-"""
-    
+    </body>
+    </html>
+    """
 
 
 # 🟢 scan
