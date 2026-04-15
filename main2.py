@@ -10,21 +10,16 @@ from email.mime.text import MIMEText
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 
-# 🔐 secret key
 SECRET_KEY = "kousayanousa"
 
 app = FastAPI()
 
-# 👥 users
 USERS = ["ahmad", "icaro", "soufian"]
-
-# 📝 attendance storage
 attendance = []
 
 
-# 🔑 generate QR
+# 🔑 QR
 def generate_code(user_id):
-    user_id = user_id.lower()
     timestamp = int(time.time() / 30)
     message = f"{user_id}:{timestamp}"
 
@@ -37,11 +32,10 @@ def generate_code(user_id):
     return f"{user_id}:{timestamp}:{signature}"
 
 
-# ✅ verify QR
+# ✅ verify
 def verify_code(code):
     try:
         user_id, timestamp, signature = code.split(":")
-        user_id = user_id.lower()
         timestamp = int(timestamp)
     except:
         return None
@@ -50,20 +44,19 @@ def verify_code(code):
 
     for t in [current_time, current_time - 1]:
         message = f"{user_id}:{t}"
-
-        expected_signature = hmac.new(
+        expected = hmac.new(
             SECRET_KEY.encode(),
             message.encode(),
             hashlib.sha256
         ).hexdigest()
 
-        if signature == expected_signature:
+        if signature == expected:
             return user_id
 
     return None
 
 
-# 📨 EMAIL (MailHog safe)
+# 📨 Email
 def send_email(to_email, subject, body):
     try:
         msg = MIMEText(body)
@@ -74,19 +67,16 @@ def send_email(to_email, subject, body):
         server = smtplib.SMTP("localhost", 1026)
         server.send_message(msg)
         server.quit()
-
-        print("Email sent ✅")
-
-    except Exception as e:
-        print("Email skipped (MailHog not available)")
+    except:
+        pass
 
 
-# 📝 register attendance
+# 📝 attendance
 def register_attendance(username, method):
     today = time.strftime("%Y-%m-%d")
 
-    for record in attendance:
-        if record["user"] == username and record["date"] == today:
+    for r in attendance:
+        if r["user"] == username and r["date"] == today:
             return
 
     attendance.append({
@@ -96,21 +86,12 @@ def register_attendance(username, method):
         "method": method
     })
 
-    send_email(
-        "test@email.com",
-        "Check-in confirmé",
-        f"{username} checked in via {method}"
-    )
+    send_email("test@email.com", "Check-in", f"{username} via {method}")
 
 
 # 🔳 QR
 @app.get("/qr/{username}")
 def get_qr(username: str):
-    username = username.lower()
-
-    if username not in USERS:
-        return {"error": "User not found ❌"}
-
     code = generate_code(username)
     img = qrcode.make(code)
 
@@ -121,145 +102,171 @@ def get_qr(username: str):
     return StreamingResponse(buf, media_type="image/png")
 
 
-# 📱 badge (🔥 UI جديد)
+# 📱 Badge UI 🔥🔥🔥
 @app.get("/my-badge/{username}", response_class=HTMLResponse)
 def badge_page(username: str):
-    username = username.lower()
-
-    if username not in USERS:
-        return "User not found ❌"
 
     return f"""
-    <html>
-    <head>
-    <style>
-        body {{
-            font-family: Arial;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }}
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-        .card {{
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            width: 320px;
-        }}
+<style>
+body {{
+    font-family: Arial;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+    margin:0;
+}}
 
-        h2 {{
-            color: #333;
-        }}
+.card {{
+    background:white;
+    padding:30px;
+    border-radius:20px;
+    text-align:center;
+    width:340px;
+    box-shadow:0 10px 25px rgba(0,0,0,0.2);
+}}
 
-        button {{
-            margin-top: 20px;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 10px;
-            background: #667eea;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            transition: 0.3s;
-        }}
+button {{
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:#667eea;
+    color:white;
+    cursor:pointer;
+}}
 
-        button:hover {{
-            background: #5a67d8;
-            transform: scale(1.05);
-        }}
+#popup {{
+    position:fixed;
+    top:20px;
+    right:20px;
+    background:green;
+    color:white;
+    padding:10px;
+    border-radius:10px;
+    display:none;
+}}
 
-        p {{
-            color: #777;
-        }}
-    </style>
-    </head>
+</style>
+</head>
 
-    <body>
+<body>
 
-    <div class="card">
-        <h2>{username.upper()} Badge</h2>
+<div class="card">
+    <h2>{username.upper()}</h2>
 
-        <img id="qr" src="/qr/{username}" width="220">
+    <img id="qr" src="/qr/{username}" width="200">
 
-        <p>QR updates every 30 seconds</p>
+    <p>Refresh in <span id="count">30</span>s</p>
 
-        <button onclick="checkin()">✅ Remote Check-in</button>
-    </div>
+    <button onclick="checkin()">Check-in</button>
 
-    <script>
-    setInterval(() => {{
-        document.getElementById("qr").src = "/qr/{username}?" + new Date().getTime();
-    }}, 30000);
+    <canvas id="chart" width="300"></canvas>
+</div>
 
-    function checkin() {{
-        fetch("/checkin/{username}")
-        .then(res => res.json())
-        .then(data => alert(data.status));
+<div id="popup">✔ Done</div>
+
+<audio id="sound" src="https://www.soundjay.com/buttons/sounds/button-3.mp3"></audio>
+
+<script>
+let counter = 30;
+
+setInterval(() => {{
+    counter--;
+    document.getElementById("count").innerText = counter;
+
+    if(counter === 0) {{
+        document.getElementById("qr").src = "/qr/{username}?"+Date.now();
+        counter = 30;
     }}
-    </script>
+}},1000);
 
-    </body>
-    </html>
-    """
+
+function checkin() {{
+    fetch("/checkin/{username}")
+    .then(res=>res.json())
+    .then(data=>{{
+        showPopup(data.status);
+        document.getElementById("sound").play();
+        loadChart();
+    }});
+}}
+
+function showPopup(msg) {{
+    let p=document.getElementById("popup");
+    p.innerText=msg;
+    p.style.display="block";
+    setTimeout(()=>p.style.display="none",2000);
+}}
+
+
+// 📊 Chart
+function loadChart() {{
+    fetch("/attendance")
+    .then(r=>r.json())
+    .then(data=>{{
+        let qr=0, remote=0;
+        data.forEach(x=>{{
+            if(x.method=="qr") qr++;
+            else remote++;
+        }});
+
+        new Chart(document.getElementById("chart"), {{
+            type: 'bar',
+            data: {{
+                labels: ['QR', 'Remote'],
+                datasets: [{{
+                    label: 'Attendance',
+                    data: [qr, remote]
+                }}]
+            }}
+        }});
+    }});
+}}
+
+loadChart();
+</script>
+
+</body>
+</html>
+"""
 
 
 # 🟢 scan
 @app.get("/scan/{code}")
 def scan(code: str):
     user = verify_code(code)
-
     if not user:
-        return {"status": "INVALID QR ❌"}
+        return {"status": "invalid"}
 
     register_attendance(user, "qr")
-
-    return {"status": f"{user} checked in via QR ✅"}
+    return {"status": "QR OK"}
 
 
 # 🔵 remote
 @app.get("/checkin/{username}")
 def checkin(username: str):
-    username = username.lower()
-
-    if username not in USERS:
-        return {"status": "User not found ❌"}
-
     register_attendance(username, "remote")
+    return {"status": "done"}
 
-    return {"status": f"{username} checked in remotely ✅"}
 
-
-# 📊 show attendance
+# 📊 attendance
 @app.get("/attendance")
 def get_attendance():
     return attendance
 
 
-# 📥 EXPORT CSV
+# 📥 export
 @app.get("/export")
 def export_csv():
-    today = time.strftime("%Y-%m-%d")
-    filename = f"attendance_{today}.csv"
-
-    with open(filename, mode="w", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=["user", "date", "time", "method"])
+    filename="attendance.csv"
+    with open(filename,"w",newline="") as f:
+        writer=csv.DictWriter(f,fieldnames=["user","date","time","method"])
         writer.writeheader()
         writer.writerows(attendance)
 
-    return FileResponse(filename, media_type='text/csv', filename=filename)
-
-
-# 🧪 TEST EMAIL
-@app.get("/test-email")
-def test_email():
-    send_email(
-        "test@email.com",
-        "Test MailHog",
-        "MailHog works 🔥"
-    )
-    return {"status": "email triggered"}
+    return FileResponse(filename)
