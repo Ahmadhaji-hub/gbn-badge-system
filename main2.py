@@ -3,19 +3,20 @@ import hashlib
 import qrcode
 import io
 import time
+import csv
 
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
 
 # 🔐 secret key
 SECRET_KEY = "kousayanousa"
 
 app = FastAPI()
 
-# 👥 users (always lowercase)
+# 👥 users
 USERS = ["ahmad", "icaro", "soufian"]
 
-# 📝 attendance storage (temporary)
+# 📝 attendance storage
 attendance = []
 
 
@@ -60,16 +61,23 @@ def verify_code(code):
     return None
 
 
-# 📝 register attendance
+# 📝 register attendance (مع منع التكرار)
 def register_attendance(username, method):
+    today = time.strftime("%Y-%m-%d")
+
+    for record in attendance:
+        if record["user"] == username and record["date"] == today:
+            return
+
     attendance.append({
         "user": username,
+        "date": today,
         "time": time.strftime("%H:%M:%S"),
         "method": method
     })
 
 
-# 🔳 QR endpoint
+# 🔳 QR
 @app.get("/qr/{username}")
 def get_qr(username: str):
     username = username.lower()
@@ -78,7 +86,6 @@ def get_qr(username: str):
         return {"error": "User not found ❌"}
 
     code = generate_code(username)
-
     img = qrcode.make(code)
 
     buf = io.BytesIO()
@@ -88,7 +95,7 @@ def get_qr(username: str):
     return StreamingResponse(buf, media_type="image/png")
 
 
-# 📱 badge page
+# 📱 badge
 @app.get("/my-badge/{username}", response_class=HTMLResponse)
 def badge_page(username: str):
     username = username.lower()
@@ -102,13 +109,10 @@ def badge_page(username: str):
         <h2>{username.upper()} Badge</h2>
 
         <img id="qr" src="/qr/{username}" width="300">
-        <p>QR changes every 30 seconds</p>
 
         <br><br>
 
-        <button onclick="checkin()" style="padding:10px 20px; font-size:16px;">
-            Remote Check-in
-        </button>
+        <button onclick="checkin()">Remote Check-in</button>
 
         <script>
         setInterval(() => {{
@@ -126,7 +130,7 @@ def badge_page(username: str):
     """
 
 
-# 🟢 QR scan (simulate kiosk)
+# 🟢 scan
 @app.get("/scan/{code}")
 def scan(code: str):
     user = verify_code(code)
@@ -139,7 +143,7 @@ def scan(code: str):
     return {"status": f"{user} checked in via QR ✅"}
 
 
-# 🔵 Remote check-in
+# 🔵 remote
 @app.get("/checkin/{username}")
 def checkin(username: str):
     username = username.lower()
@@ -152,7 +156,21 @@ def checkin(username: str):
     return {"status": f"{username} checked in remotely ✅"}
 
 
-# 📊 attendance list
+# 📊 show attendance
 @app.get("/attendance")
 def get_attendance():
     return attendance
+
+
+# 📥 EXPORT TO EXCEL (CSV)
+@app.get("/export")
+def export_csv():
+    today = time.strftime("%Y-%m-%d")
+    filename = f"attendance_{today}.csv"
+
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=["user", "date", "time", "method"])
+        writer.writeheader()
+        writer.writerows(attendance)
+
+    return FileResponse(filename, media_type='text/csv', filename=filename)
