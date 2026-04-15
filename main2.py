@@ -63,17 +63,25 @@ def verify_code(code):
     return None
 
 
-# 📨 MAILHOG EMAIL FUNCTION 🔥
+# 📨 EMAIL (MailHog local + safe on Render)
 def send_email(to_email, subject, body):
-    msg = MIMEText(body)
-    msg["Subject"] = subject
-    msg["From"] = "test@local.com"
-    msg["To"] = to_email
+    try:
+        msg = MIMEText(body)
+        msg["Subject"] = subject
+        msg["From"] = "test@local.com"
+        msg["To"] = to_email
 
-    # 👇 مهم: البورت الجديد 1026
-    server = smtplib.SMTP("localhost", 1026)
-    server.send_message(msg)
-    server.quit()
+        # MailHog local
+        server = smtplib.SMTP("localhost", 1026)
+        server.send_message(msg)
+        server.quit()
+
+        print("Email sent via MailHog ✅")
+
+    except Exception as e:
+        # Render or no MailHog → ignore
+        print("Email skipped (MailHog not available)")
+        print("Error:", e)
 
 
 # 📝 register attendance
@@ -91,7 +99,7 @@ def register_attendance(username, method):
         "method": method
     })
 
-    # 🔥 send email after check-in
+    # 🔥 send email safely
     send_email(
         "test@email.com",
         "Check-in confirmé",
@@ -206,4 +214,4 @@ def test_email():
         "Test MailHog",
         "MailHog works 🔥"
     )
-    return {"status": "email sent"}
+    return {"status": "email triggered"}
