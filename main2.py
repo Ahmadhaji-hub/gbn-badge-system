@@ -4,6 +4,8 @@ import qrcode
 import io
 import time
 import csv
+import smtplib
+from email.mime.text import MIMEText
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
@@ -61,7 +63,20 @@ def verify_code(code):
     return None
 
 
-# 📝 register attendance (مع منع التكرار)
+# 📨 MAILHOG EMAIL FUNCTION 🔥
+def send_email(to_email, subject, body):
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = "test@local.com"
+    msg["To"] = to_email
+
+    # 👇 مهم: البورت الجديد 1026
+    server = smtplib.SMTP("localhost", 1026)
+    server.send_message(msg)
+    server.quit()
+
+
+# 📝 register attendance
 def register_attendance(username, method):
     today = time.strftime("%Y-%m-%d")
 
@@ -75,6 +90,13 @@ def register_attendance(username, method):
         "time": time.strftime("%H:%M:%S"),
         "method": method
     })
+
+    # 🔥 send email after check-in
+    send_email(
+        "test@email.com",
+        "Check-in confirmé",
+        f"{username} checked in via {method}"
+    )
 
 
 # 🔳 QR
@@ -162,7 +184,7 @@ def get_attendance():
     return attendance
 
 
-# 📥 EXPORT TO EXCEL (CSV)
+# 📥 EXPORT CSV
 @app.get("/export")
 def export_csv():
     today = time.strftime("%Y-%m-%d")
@@ -174,3 +196,14 @@ def export_csv():
         writer.writerows(attendance)
 
     return FileResponse(filename, media_type='text/csv', filename=filename)
+
+
+# 🧪 TEST EMAIL
+@app.get("/test-email")
+def test_email():
+    send_email(
+        "test@email.com",
+        "Test MailHog",
+        "MailHog works 🔥"
+    )
+    return {"status": "email sent"}
